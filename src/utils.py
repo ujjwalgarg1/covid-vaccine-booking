@@ -6,7 +6,7 @@ from captcha import captcha_builder
 
 BOOKING_URL = "https://cdn-api.co-vin.in/api/v2/appointment/schedule"
 BENEFICIARIES_URL = "https://cdn-api.co-vin.in/api/v2/appointment/beneficiaries"
-CALENDAR_URL_DISTRICT = "https://cdn-api.co-vin.in/api/v2/appointment/sessions/calendarByDistrict?district_id={0}&date={1}"
+CALENDAR_URL_DISTRICT = "https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByDistrict?district_id={0}&date={1}"
 CALENDAR_URL_PINCODE = "https://cdn-api.co-vin.in/api/v2/appointment/sessions/calendarByPin?pincode={0}&date={1}"
 CAPTCHA_URL = "https://cdn-api.co-vin.in/api/v2/auth/getRecaptcha"
 OTP_PUBLIC_URL = 'https://cdn-api.co-vin.in/api/v2/auth/public/generateOTP'
@@ -31,7 +31,7 @@ else:
         winsound.Beep(freq, duration)
 
 
-def viable_options(resp, minimum_slots, min_age_booking, fee_type, dose):
+def viable_options(resp, minimum_slots, min_age_booking, fee_type, dose, vaccine_type):
     options = []
     if len(resp['centers']) >= 0:
         for center in resp['centers']:
@@ -40,6 +40,7 @@ def viable_options(resp, minimum_slots, min_age_booking, fee_type, dose):
                 availability = session['available_capacity_dose1'] if dose == 1 else session['available_capacity_dose2']
                 if (availability >= minimum_slots) \
                         and (session['min_age_limit'] <= min_age_booking)\
+                        and (session['vaccine'] == vaccine_type) \
                         and (center['fee_type'] in fee_type):
                     out = {
                         'name': center['name'],
@@ -222,7 +223,6 @@ def collect_user_details(request_header):
 
     return collected_details
 
-
 def check_calendar_by_district(request_header, vaccine_type, location_dtls, start_date, minimum_slots, min_age_booking, fee_type, dose):
     """
     This function
@@ -232,7 +232,7 @@ def check_calendar_by_district(request_header, vaccine_type, location_dtls, star
         4. Returns list of vaccination centers & slots if available
     """
     try:
-        print('===================================================================================')
+        print('\n===================================================================================\n')
         today = datetime.datetime.today()
         base_url = CALENDAR_URL_DISTRICT
 
@@ -242,7 +242,7 @@ def check_calendar_by_district(request_header, vaccine_type, location_dtls, star
         options = []
         for location in location_dtls:
             resp = requests.get(base_url.format(location['district_id'], start_date), headers=request_header)
-
+            print(f"Response Code: {resp.status_code}\n")
             if resp.status_code == 401:
                 print('TOKEN INVALID')
                 return False
@@ -251,9 +251,10 @@ def check_calendar_by_district(request_header, vaccine_type, location_dtls, star
                 resp = resp.json()
                 if 'centers' in resp:
                     print(f"Centers available in {location['district_name']} from {start_date} as of {today.strftime('%Y-%m-%d %H:%M:%S')}: {len(resp['centers'])}")
-                    options += viable_options(resp, minimum_slots, min_age_booking, fee_type, dose)
+                    options += viable_options(resp, minimum_slots, min_age_booking, fee_type, dose, vaccine_type)
 
             else:
+                print(f"Response Code: {resp.status_code}\n")
                 pass
 
         for location in location_dtls:
@@ -295,7 +296,7 @@ def check_calendar_by_pincode(request_header, vaccine_type, location_dtls, start
                 resp = resp.json()
                 if 'centers' in resp:
                     print(f"Centers available in {location['pincode']} from {start_date} as of {today.strftime('%Y-%m-%d %H:%M:%S')}: {len(resp['centers'])}")
-                    options += viable_options(resp, minimum_slots, min_age_booking, fee_type, dose)
+                    options += viable_options(resp, minimum_slots, min_age_booking, fee_type, dose, vaccine_type)
 
             else:
                 pass
